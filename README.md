@@ -1,4 +1,3 @@
-
 # RansomwareSimulator
 The goal of this repository is to provide a simple, harmless way to check your AV's protection on ransomware.
 
@@ -38,3 +37,6 @@ The ransomware simulator takes no action that actually encrypts pre-existing fil
 Each step, as listed above, can also be either disabled or "highly" configured. I recommand you have a look at the code before running it.
 
 Every file is backed-up before encryption (just in case), it uses a simple `XOR` with the key `000`. Every taken  step is logged into **RansomSimulator.log**
+
+# Don't be stupid
+You are responsible of what you will do with this, do not trust me read the code and be sure you understand what you are about to run.
