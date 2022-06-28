@@ -157,3 +157,7 @@ Every file is backed-up before encryption (just in case), it uses a simple `XOR`
 
 # Don't be stupid
 You are responsible of what you will do with this, do not trust me read the code and be sure you understand what you are about to run.
+
+# Inspiration
+https://github.com/NextronSystems/ransomware-simulator
+https://github.com/JoelGMSec/PSRansom
