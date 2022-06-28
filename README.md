@@ -32,7 +32,7 @@ You can  configure your simulation via `appsettings.json`
  - `WorkingDirectory`: Where to search those files
  - `MaxFileSearch`: Number of files to encrypt
 
-The ransomware simulator takes no action that actually encrypts pre-existing files on the device, or deletes Volume Shadow Copies. However, any AV products looking for such behaviour should still hopefully trigger.
+The ransomware simulator takes no action that actually encrypts files on the device beyond what it was told to, or deletes existing Volume Shadow Copies. However, any AV products looking for such behaviour should still hopefully trigger.
 
 Each step, as listed above, can also be either disabled or "highly" configured. I recommand you have a look at the code before running it.
 
